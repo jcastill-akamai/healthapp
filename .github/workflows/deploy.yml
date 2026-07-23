@@ -97,7 +97,8 @@ jobs:
   deploy-manual:
     name: Deploy Manual
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    needs: [build-push]
+    if: github.event_name != 'pull_request'
     environment: development
     steps:
     - uses: actions/checkout@v4
