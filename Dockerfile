@@ -1,5 +1,5 @@
 # ── Stage 1: Build ────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 
 # Copy manifests first to leverage layer cache
@@ -9,7 +9,7 @@ RUN npm ci --only=production
 COPY . .
 
 # ── Stage 2: Production Image ──────────────────────────────────
-FROM node:20-alpine AS runtime
+FROM node:24-alpine AS runtime
 
 # Security: run as non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
