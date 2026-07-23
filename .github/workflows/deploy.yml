@@ -63,37 +63,6 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-
-  deploy:
-    name: Deploy to Dev with helm
-    runs-on: ubuntu-latest
-    needs: [build-push]
-    if: github.event_name == 'workflow_dispatch'
-    environment: development
-    steps:
-    - uses: actions/checkout@v4
-
-    - uses: azure/setup-helm@v3
-
-    - name: Configure kubeconfig
-      run: |
-        mkdir -p ~/.kube
-        echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
-
-    - name: Deploy via Helm
-      run: |
-        helm upgrade --install statusboard ./helm/statusboard \
-          --namespace development \
-          --create-namespace \
-          --set image.tag=${{ github.sha }} \
-          --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
-          --atomic \
-          --wait \
-          --timeout 5m
-
-    - name: Verify rollout
-      run: kubectl rollout status deployment/statusboard -n development
-
   deploy-manual:
     name: Deploy Manual
     runs-on: ubuntu-latest
