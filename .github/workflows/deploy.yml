@@ -78,7 +78,7 @@ jobs:
     - name: Configure kubeconfig
       run: |
         mkdir -p ~/.kube
-        echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+        echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
 
     - name: Deploy via Helm
       run: |
@@ -106,7 +106,7 @@ jobs:
     - name: Configure kubeconfig
       run: |
         mkdir -p ~/.kube
-        echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+        echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
 
     - name: Deploy via kubectl
       run: |
