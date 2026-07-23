@@ -29,8 +29,6 @@ spec:
         envFrom:
         - configMapRef:
             name: statusboard-config
-        - secretRef:
-            name: statusboard-secrets
         resources:
           requests:
             cpu: "100m"
