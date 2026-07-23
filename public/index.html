@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StatusBoard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f6f8fa; color: #1f2328; min-height: 100vh; }
+
+    /* ── Header ── */
+    header {
+      background: #0d1117; color: #e6edf3;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 24px; height: 52px; border-bottom: 1px solid #30363d;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .logo { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }
+    .badge { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 20px; font-family: monospace; }
+    .badge-version { background: #1f6feb22; color: #58a6ff; border: 1px solid #1f6feb55; }
+    .badge-env     { background: #1a7f3722; color: #3fb950; border: 1px solid #1a7f3744; }
+    .badge-env.degraded { background: #9a670022; color: #d29922; border-color: #9a670055; }
+    .uptime { margin-left: auto; font-family: monospace; font-size: 12px; color: #7d8590; }
+
+    /* ── Layout ── */
+    main { max-width: 1060px; margin: 24px auto; padding: 0 16px; display: grid; grid-template-columns: 1fr 380px; gap: 16px; }
+    .left  { display: flex; flex-direction: column; gap: 14px; }
+    .right { display: flex; flex-direction: column; gap: 14px; }
+
+    /* ── Stat cards ── */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .stat  { border-radius: 8px; padding: 12px 14px; border: 1px solid; }
+    .stat .lbl { font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+    .stat .val { font-size: 24px; font-weight: 500; transition: all .3s; }
+    .s-healthy  { background: #dafbe1; border-color: #aceebb; color: #1a7f37; }
+    .s-degraded { background: #fff8c5; border-color: #f5c518; color: #9a6700; }
+    .s-down     { background: #ffebe9; border-color: #ffb8b0; color: #cf222e; }
+    .s-neutral  { background: #fff;    border-color: #d0d7de; color: #1f2328; }
+    .s-neutral .lbl { color: #636c76; }
+
+    /* ── Panel ── */
+    .panel { background: #fff; border: 1px solid #d0d7de; border-radius: 12px; overflow: hidden; }
+    .panel-header {
+      padding: 10px 16px; border-bottom: 1px solid #d0d7de;
+      font-size: 11px; font-weight: 600; color: #636c76; letter-spacing: 0.5px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .panel-header .actions { margin-left: auto; display: flex; gap: 6px; }
+
+    /* ── Buttons ── */
+    .btn {
+      font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px;
+      border: 1px solid; cursor: pointer; transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-danger  { background: #ffebe9; color: #cf222e; border-color: #ffb8b0; }
+    .btn-success { background: #dafbe1; color: #1a7f37; border-color: #aceebb; }
+    .btn-neutral { background: #f6f8fa; color: #1f2328; border-color: #d0d7de; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── Service rows ── */
+    .svc-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px; border-bottom: 1px solid #f6f8fa;
+      cursor: pointer; transition: background .12s;
+      user-select: none;
+    }
+    .svc-row:last-child { border-bottom: none; }
+    .svc-row:hover { background: #f6f8fa; }
+    .svc-row.flashing { animation: flash .4s ease; }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; transition: background .3s; }
+    .dot.healthy  { background: #1a7f37; }
+    .dot.degraded { background: #d29922; animation: pulse 1.5s infinite; }
+    .dot.down     { background: #cf222e; animation: blink .8s infinite; }
+
+    .svc-name { flex: 1; font-family: monospace; font-size: 12px; }
+    .svc-hint { font-size: 10px; color: #8c959f; margin-top: 1px; }
+    .svc-badge {
+      font-size: 10px; font-weight: 600; padding: 2px 8px;
+      border-radius: 20px; border: 1px solid; transition: all .3s; min-width: 62px; text-align: center;
+    }
+    .svc-badge.healthy  { background: #dafbe1; color: #1a7f37; border-color: #aceebb; }
+    .svc-badge.degraded { background: #fff8c5; color: #9a6700; border-color: #f5c518; }
+    .svc-badge.down     { background: #ffebe9; color: #cf222e; border-color: #ffb8b0; }
+    .latency  { font-family: monospace; font-size: 11px; color: #636c76; min-width: 46px; text-align: right; }
+    .replicas { font-family: monospace; font-size: 11px; color: #636c76; min-width: 32px; text-align: right; }
+
+    /* ── Health JSON ── */
+    .health-meta { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #d0d7de; }
+    .health-meta code { font-size: 11px; font-family: monospace; background: #f6f8fa; border: 1px solid #d0d7de; padding: 2px 7px; border-radius: 4px; color: #0969da; }
+    .probe-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; border: 1px solid; }
+    .probe-ok   { background: #dafbe1; color: #1a7f37; border-color: #aceebb; }
+    .probe-degraded { background: #ffebe9; color: #cf222e; border-color: #ffb8b0; }
+    .probe-ms { margin-left: auto; font-size: 11px; font-family: monospace; color: #8c959f; }
+    .health-json { background: #0d1117; padding: 14px 16px; font-family: monospace; font-size: 11.5px; line-height: 1.75; color: #e6edf3; min-height: 160px; }
+    .health-note { padding: 8px 16px; font-size: 10.5px; color: #636c76; border-top: 1px solid #d0d7de; }
+    .k { color: #79c0ff; } .vs { color: #a5d6ff; } .ok { color: #3fb950; } .warn { color: #d29922; } .err { color: #f85149; }
+
+    /* ── Event log ── */
+    .log-body { padding: 8px 14px; font-family: monospace; font-size: 11px; line-height: 1.9; min-height: 110px; max-height: 160px; overflow-y: auto; }
+    .log-row { display: flex; gap: 10px; }
+    .log-time { color: #8c959f; flex-shrink: 0; }
+    .log-INFO  { color: #636c76; }
+    .log-WARN  { color: #9a6700; font-weight: 500; }
+    .log-ERROR { color: #cf222e; font-weight: 500; }
+    .log-row.new { animation: fadeIn .25s ease; }
+
+    /* ── Animations ── */
+    @keyframes pulse   { 0%,100%{opacity:1}  50%{opacity:.4} }
+    @keyframes blink   { 0%,100%{opacity:1}  49%{opacity:1}  50%{opacity:.15} 99%{opacity:.15} }
+    @keyframes flash   { 0%{background:#fff8c5} 100%{background:transparent} }
+    @keyframes fadeIn  { from{opacity:0;transform:translateY(-3px)} to{opacity:1;transform:none} }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">⬡ StatusBoard</span>
+  <span class="badge badge-version" id="h-ver">v1.0.0</span>
+  <span class="badge badge-env"     id="h-env">production</span>
+  <span class="uptime">uptime: <span id="h-uptime">—</span></span>
+</header>
+
+<main>
+  <!-- Left column -->
+  <div class="left">
+
+    <div class="stats">
+      <div class="stat s-healthy">
+        <div class="lbl">Healthy</div>
+        <div class="val" id="cnt-h">—</div>
+      </div>
+      <div class="stat s-degraded">
+        <div class="lbl">Degraded</div>
+        <div class="val" id="cnt-d">—</div>
+      </div>
+      <div class="stat s-down">
+        <div class="lbl">Down</div>
+        <div class="val" id="cnt-x">—</div>
+      </div>
+      <div class="stat s-neutral">
+        <div class="lbl">Probes</div>
+        <div class="val" id="cnt-p">0</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        SERVICES
+        <span style="color:#8c959f;font-weight:400;font-size:10px;">click a row to cycle status</span>
+        <div class="actions">
+          <button class="btn btn-danger"  id="btn-incident" onclick="triggerIncident()">⚠ Simulate outage</button>
+          <button class="btn btn-success" id="btn-restore"  onclick="restoreAll()" disabled>✓ Restore all</button>
+        </div>
+      </div>
+      <div id="svc-list">Loading…</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">LIVE EVENT LOG</div>
+      <div class="log-body" id="log"></div>
+    </div>
+
+  </div>
+
+  <!-- Right column -->
+  <div class="right">
+
+    <div class="panel">
+      <div class="health-meta">
+        <code>GET /health</code>
+        <span class="probe-badge probe-ok" id="probe-badge">200 OK</span>
+        <span class="probe-ms" id="probe-ms">—</span>
+      </div>
+      <div class="health-json" id="health-json">Loading…</div>
+      <div class="health-note">
+        K8s hits this every 5 s for <code style="font-size:10px;">readinessProbe</code> &amp; <code style="font-size:10px;">livenessProbe</code>.<br>
+        503 = pod removed from Service endpoints.
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+  let probes = 0;
+  let logs   = [];
+
+  // ── Logging ──────────────────────────────────────────────
+  function addLog(level, msg) {
+    const now = new Date();
+    const ts  = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    logs.unshift({ ts, level, msg });
+    if (logs.length > 40) logs.pop();
+    renderLog();
+  }
+  function pad(n) { return String(n).padStart(2, "0"); }
+
+  function renderLog() {
+    document.getElementById("log").innerHTML = logs.map((l, i) =>
+      `<div class="log-row${i === 0 ? " new" : ""}">
+        <span class="log-time">${l.ts}</span>
+        <span class="log-${l.level}">${l.level.padEnd(5)} ${l.msg}</span>
+      </div>`
+    ).join("");
+  }
+
+  // ── Services ─────────────────────────────────────────────
+  const CYCLE = ["healthy", "degraded", "down"];
+
+  async function loadServices() {
+    const res  = await fetch("/api/services");
+    const data = await res.json();
+    renderServices(data);
+    updateStats(data);
+  }
+
+  function renderServices(data) {
+    document.getElementById("svc-list").innerHTML = data.map(s => `
+      <div class="svc-row" id="row-${s.name}" onclick="cycleStatus('${s.name}')">
+        <span class="dot ${s.status}"></span>
+        <span class="svc-name">
+          ${s.name}
+          <div class="svc-hint">click to change status</div>
+        </span>
+        <span class="svc-badge ${s.status}">${s.status}</span>
+        <span class="latency">${s.latency != null ? s.latency + "ms" : "—"}</span>
+        <span class="replicas">${s.replicas}</span>
+      </div>
+    `).join("");
+  }
+
+  function updateStats(data) {
+    document.getElementById("cnt-h").textContent = data.filter(s => s.status === "healthy").length;
+    document.getElementById("cnt-d").textContent = data.filter(s => s.status === "degraded").length;
+    document.getElementById("cnt-x").textContent = data.filter(s => s.status === "down").length;
+    const anyDown = data.some(s => s.status !== "healthy");
+    document.getElementById("btn-restore").disabled = !anyDown;
+  }
+
+  async function cycleStatus(name) {
+    const badge = document.querySelector(`#row-${name} .svc-badge`);
+    const cur   = badge.textContent.trim();
+    const next  = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length];
+
+    const res  = await fetch(`/api/services/${name}/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: next }),
+    });
+    const svc = await res.json();
+
+    // Flash the row
+    const row = document.getElementById(`row-${name}`);
+    row.classList.remove("flashing");
+    void row.offsetWidth;
+    row.classList.add("flashing");
+
+    addLog(next === "down" ? "ERROR" : next === "degraded" ? "WARN" : "INFO",
+      `${name}: status changed → ${next}`);
+
+    await loadServices();
+  }
+
+  async function triggerIncident() {
+    document.getElementById("btn-incident").disabled = true;
+    await fetch("/api/incident", { method: "POST" });
+    addLog("ERROR", "INCIDENT triggered — api-gateway, auth-service, data-sync → down");
+    await loadServices();
+    document.getElementById("btn-incident").disabled = false;
+  }
+
+  async function restoreAll() {
+    document.getElementById("btn-restore").disabled = true;
+    await fetch("/api/restore", { method: "POST" });
+    addLog("INFO", "All services restored to defaults");
+    await loadServices();
+  }
+
+  // ── Health probe ─────────────────────────────────────────
+  async function pollHealth() {
+    const t0  = Date.now();
+    const res = await fetch("/health");
+    const ms  = Date.now() - t0;
+    const d   = await res.json();
+    probes++;
+
+    document.getElementById("cnt-p").textContent  = probes;
+    document.getElementById("h-ver").textContent  = "v" + d.version;
+    document.getElementById("h-uptime").textContent = d.uptime;
+
+    const envBadge = document.getElementById("h-env");
+    envBadge.textContent = d.env;
+    envBadge.className   = "badge badge-env" + (d.status !== "ok" ? " degraded" : "");
+
+    const pb = document.getElementById("probe-badge");
+    pb.textContent = d.status === "ok" ? "200 OK" : "503 Degraded";
+    pb.className   = "probe-badge " + (d.status === "ok" ? "probe-ok" : "probe-degraded");
+    document.getElementById("probe-ms").textContent = ms + "ms";
+
+    const sc = d.checks.services;
+    document.getElementById("health-json").innerHTML =
+      `{\n` +
+      `  <span class="k">"status"</span>:    <span class="${d.status==='ok'?'ok':'err'}">"${d.status}"</span>,\n` +
+      `  <span class="k">"version"</span>:   <span class="vs">"${d.version}"</span>,\n` +
+      `  <span class="k">"env"</span>:       <span class="vs">"${d.env}"</span>,\n` +
+      `  <span class="k">"uptime"</span>:    <span class="vs">"${d.uptime}"</span>,\n` +
+      `  <span class="k">"checks"</span>: {\n` +
+      `    <span class="k">"database"</span>: <span class="ok">"ok"</span>,\n` +
+      `    <span class="k">"cache"</span>:    <span class="ok">"ok"</span>,\n` +
+      `    <span class="k">"services"</span>: {\n` +
+      `      <span class="k">"healthy"</span>:  <span class="${sc.healthy>0?'ok':'vs'}">${sc.healthy}</span>,\n` +
+      `      <span class="k">"degraded"</span>: <span class="${sc.degraded>0?'warn':'vs'}">${sc.degraded}</span>,\n` +
+      `      <span class="k">"down"</span>:     <span class="${sc.down>0?'err':'vs'}">${sc.down}</span>\n` +
+      `    }\n  },\n` +
+      `  <span class="k">"timestamp"</span>: <span class="vs">"${d.timestamp}"</span>\n}`;
+
+    addLog("INFO", `GET /health → ${res.status} ${d.status} (${ms}ms)`);
+    await loadServices();
+  }
+
+  // ── Init ─────────────────────────────────────────────────
+  addLog("INFO", "StatusBoard started — polling /health every 5s");
+  loadServices();
+  pollHealth();
+  setInterval(pollHealth, 5000);
+</script>
+</body>
+</html>

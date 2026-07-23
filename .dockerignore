@@ -1,0 +1,22 @@
+# Dependencies — reinstalled inside the container by npm ci
+node_modules
+
+# Test files — not needed in production image
+src/__tests__
+coverage
+.nyc_output
+
+# Git and CI
+.git
+.github
+.gitignore
+
+# Local dev files
+.env
+*.log
+npm-debug.log*
+
+# Editor
+.vscode
+.idea
+*.swp
